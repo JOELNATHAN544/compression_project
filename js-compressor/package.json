@@ -1,0 +1,14 @@
+{
+  "name": "js-compressor",
+  "version": "1.0.0",
+  "description": "JavaScript implementation of compression algorithms",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "start": "node index.js"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+} 
