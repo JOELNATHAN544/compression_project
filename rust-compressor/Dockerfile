@@ -1,5 +1,5 @@
 # Use Rust official image as builder
-FROM rust:1.75 as builder
+FROM rust:latest as builder
 
 # Set working directory
 WORKDIR /usr/src/rust-compressor
