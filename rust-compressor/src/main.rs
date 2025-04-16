@@ -3,7 +3,7 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::path::Path;
 
-use compressor::{compress_lz, decompress_lz, compress_rle, decompress_rle};
+use rust_compressor::{compress_lz, decompress_lz, compress_rle, decompress_rle};
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
