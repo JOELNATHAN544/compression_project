@@ -1,0 +1,17 @@
+# Node.js
+node_modules/
+**/node_modules/
+
+# Rust
+/target/
+**/*.rs.bk
+
+# Build artifacts
+*.bin
+*.txt
+*.compressed
+*.decompressed
+
+# IDE
+.vscode/
+.idea/ 

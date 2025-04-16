@@ -4,11 +4,11 @@
   "description": "JavaScript implementation of compression algorithms",
   "main": "index.js",
   "scripts": {
-    "test": "jest",
+    "test": "mocha test/*.test.js",
     "start": "node index.js"
   },
   "dependencies": {},
   "devDependencies": {
-    "jest": "^29.7.0"
+    "mocha": "11.2.1"
   }
 } 

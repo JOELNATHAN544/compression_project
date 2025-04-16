@@ -1,59 +1,82 @@
 function compress(input) {
-    if (!input) return '';
-    
-    const dictionary = new Map();
-    let nextCode = 256;
-    let result = [];
+    // Handle Buffer input
+    if (Buffer.isBuffer(input)) {
+        input = input.toString();
+    }
+    if (typeof input !== 'string') {
+        throw new Error('Input must be a string');
+    }
+
+    let dictionary = new Map();
     let current = '';
+    let result = [];
+    let nextCode = 256; // Start after ASCII codes
+
+    // Initialize dictionary with single characters
+    for (let i = 0; i < 256; i++) {
+        dictionary.set(String.fromCharCode(i), i);
+    }
     
     for (let i = 0; i < input.length; i++) {
         const char = input[i];
-        const combined = current + char;
+        const phrase = current + char;
         
-        if (dictionary.has(combined)) {
-            current = combined;
+        if (dictionary.has(phrase)) {
+            current = phrase;
         } else {
-            result.push(dictionary.has(current) ? dictionary.get(current) : current.charCodeAt(0));
-            dictionary.set(combined, nextCode++);
+            // Output the code for current
+            result.push(dictionary.get(current) || dictionary.get(char));
+            // Add phrase to dictionary
+            dictionary.set(phrase, nextCode++);
             current = char;
         }
     }
     
-    if (current) {
-        result.push(dictionary.has(current) ? dictionary.get(current) : current.charCodeAt(0));
+    // Output the code for any remaining input
+    if (current.length > 0) {
+        result.push(dictionary.get(current));
     }
     
     return result.join(',');
 }
 
 function decompress(input) {
-    if (!input) return '';
-    
-    const dictionary = new Map();
+    if (typeof input !== 'string') {
+        throw new Error('Input must be a string');
+    }
+
+    if (input === '') return '';
+
+    const codes = input.split(',').map(x => parseInt(x));
+    let dictionary = new Map();
     let nextCode = 256;
-    const codes = input.split(',').map(Number);
-    let result = '';
-    let previous = String.fromCharCode(codes[0]);
-    result += previous;
+
+    // Initialize dictionary with single characters
+    for (let i = 0; i < 256; i++) {
+        dictionary.set(i, String.fromCharCode(i));
+    }
+
+    let result = [dictionary.get(codes[0])];
+    let current = result[0];
     
     for (let i = 1; i < codes.length; i++) {
         const code = codes[i];
-        let current;
+        let entry;
         
         if (dictionary.has(code)) {
-            current = dictionary.get(code);
+            entry = dictionary.get(code);
         } else if (code === nextCode) {
-            current = previous + previous[0];
+            entry = current + current[0];
         } else {
-            current = String.fromCharCode(code);
+            throw new Error('Invalid compressed data');
         }
         
-        result += current;
-        dictionary.set(nextCode++, previous + current[0]);
-        previous = current;
+        result.push(entry);
+        dictionary.set(nextCode++, current + entry[0]);
+        current = entry;
     }
     
-    return result;
+    return result.join('');
 }
 
 module.exports = {
