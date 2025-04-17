@@ -8,9 +8,9 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "file-type": "^16.5.4"
+    "glob": "^7.2.0"
   },
   "devDependencies": {
-    "mocha": "^11.2.1"
+    "mocha": "^11.2.2"
   }
-} 
+}

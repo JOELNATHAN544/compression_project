@@ -5,60 +5,56 @@ use std::io::{self, Read, Write, stdin, stdout};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use anyhow::{Result, Context};
+use glob::glob;
 
 #[derive(Parser)]
+#[command(author, version, about, long_about = None)]
 #[command(
     name = "compression",
-    about = "A file compression tool supporting RLE and LZ algorithms",
-    long_about = "A file compression tool that supports Run-Length Encoding (RLE) and Lempel-Ziv (LZ) compression algorithms. \
-                  Can work with files or standard input/output streams.",
-    after_help = "EXAMPLES:\n\
-    1. Compress a file using RLE:\n\
-       cargo run -- compress input.txt output.txt --algorithm rle\n\
-    2. Decompress a file using LZ:\n\
-       cargo run -- decompress input.compressed output.txt --algorithm lz\n\
-    3. Auto-detect algorithm based on file type:\n\
-       cargo run -- compress image.jpg compressed.out\n\
-    4. Use stdin/stdout:\n\
-       echo 'Hello' | cargo run -- compress > compressed.out\n\
-       cat compressed.out | cargo run -- decompress\n\
-    5. Chain operations:\n\
-       echo 'Test' | cargo run -- compress | cargo run -- decompress"
+    about = "A file compression tool that supports Run-Length Encoding (RLE) and Lempel-Ziv (LZ) compression algorithms. Can work with files, multiple files using glob patterns, or standard input/output streams.",
+    long_about = "A file compression tool that supports Run-Length Encoding (RLE) and Lempel-Ziv (LZ) compression algorithms. Can work with files, multiple files using glob patterns, or standard input/output streams.
+
+EXAMPLES:
+    1. Single File Operations:
+       cargo run -- compress input.txt output.txt --algorithm rle
+       cargo run -- decompress input.compressed output.txt --algorithm lz
+
+    2. Multiple File Operations:
+       # Compress all text files in current directory
+       cargo run -- compress \"*.txt\" compressed_files --algorithm rle
+       # Compress files in subdirectories
+       cargo run -- compress \"src/**/*.json\" dist --algorithm lz
+       # Decompress multiple files
+       cargo run -- decompress \"*.compressed\" decompressed_files
+
+    3. Using Stdin/Stdout:
+       echo 'Hello' | cargo run -- compress > compressed.out
+       cat compressed.out | cargo run -- decompress
+
+    4. Auto-detection:
+       # Auto-selects RLE for .txt files
+       cargo run -- compress document.txt output.bin
+       # Auto-selects LZ for binary files
+       cargo run -- compress image.jpg output.bin
+
+    5. Testing:
+       cargo test
+
+    Note: When using glob patterns (*, **), the output must be a directory"
 )]
 struct Cli {
     /// Operation to perform (compress or decompress)
-    #[arg(value_enum)]
-    operation: Operation,
+    operation: String,
 
-    /// Input file (optional, uses stdin if not provided)
-    /// Examples: 
-    ///   - 'input.txt' to read from file
-    ///   - omit to read from stdin
-    #[arg(value_parser)]
-    input: Option<PathBuf>,
+    /// Input file or glob pattern (e.g., "*.txt", "src/**/*.json"). Uses stdin if not provided
+    input: Option<String>,
 
-    /// Output file (optional, uses stdout if not provided)
-    /// Examples:
-    ///   - 'output.txt' to write to file
-    ///   - omit to write to stdout
-    #[arg(value_parser)]
-    output: Option<PathBuf>,
+    /// Output file or directory (must be directory for glob patterns). Uses stdout if not provided
+    output: Option<String>,
 
-    /// Compression algorithm to use (optional, auto-detects if not provided)
-    /// Examples:
-    ///   - '--algorithm rle' for text files
-    ///   - '--algorithm lz' for binary files
-    ///   - omit to auto-detect based on file type
-    #[arg(value_enum, short, long)]
+    /// Compression algorithm to use (auto-detects if not provided)
+    #[arg(long, value_enum)]
     algorithm: Option<Algorithm>,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, ValueEnum, Debug)]
-enum Operation {
-    /// Compress the input data
-    Compress,
-    /// Decompress the input data
-    Decompress,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum, Debug)]
@@ -69,26 +65,16 @@ enum Algorithm {
     Lz,
 }
 
-fn detect_best_algorithm(data: &[u8]) -> Algorithm {
-    if let Some(kind) = infer::get(data) {
-        match kind.mime_type() {
-            // Use RLE for text-based files
-            "text/plain" | "text/html" | "text/css" | "application/json" | "text/xml" => Algorithm::Rle,
-            
-            // Use LZ for binary/compressed files
-            "application/pdf" | "application/zip" | "image/jpeg" | "image/png" | 
-            "application/x-executable" | "application/x-msdos-program" => Algorithm::Lz,
-            
-            // Default to RLE for unknown types
-            _ => Algorithm::Rle,
-        }
-    } else {
-        // If we can't detect the type, check if it looks like text
-        if data.iter().all(|&b| b.is_ascii()) {
-            Algorithm::Rle
-        } else {
-            Algorithm::Lz
-        }
+fn detect_algorithm(path: &Path) -> Algorithm {
+    let ext = path.extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    match ext.as_str() {
+        "txt" | "json" | "xml" | "html" | "css" | "js" | "md" => Algorithm::Rle,
+        "pdf" | "doc" | "docx" | "zip" | "exe" | "jpg" | "png" | "gif" => Algorithm::Lz,
+        _ => Algorithm::Rle,
     }
 }
 
@@ -205,71 +191,111 @@ fn lz_decompress(input: &[u8]) -> Vec<u8> {
     result
 }
 
-fn process_data(operation: Operation, algorithm: Algorithm, input: &[u8]) -> Result<Vec<u8>> {
-    Ok(match (operation, algorithm) {
-        (Operation::Compress, Algorithm::Rle) => rle_compress(input),
-        (Operation::Decompress, Algorithm::Rle) => rle_decompress(input),
-        (Operation::Compress, Algorithm::Lz) => lz_compress(input),
-        (Operation::Decompress, Algorithm::Lz) => lz_decompress(input),
-    })
+fn process_file(input_path: &Path, output_path: &Path, operation: &str, algorithm: Algorithm) -> Result<()> {
+    let mut input = String::new();
+    fs::File::open(input_path)?.read_to_string(&mut input)?;
+
+    let result = match (operation, algorithm) {
+        ("compress", Algorithm::Rle) => rle_compress(input.as_bytes()),
+        ("compress", Algorithm::Lz) => lz_compress(input.as_bytes()),
+        ("decompress", Algorithm::Rle) => rle_decompress(input.as_bytes()),
+        ("decompress", Algorithm::Lz) => lz_decompress(input.as_bytes()),
+        _ => return Err(anyhow::anyhow!("Invalid operation")),
+    };
+
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(output_path, result)?;
+    eprintln!("Processed {} -> {} using {:?}", input_path.display(), output_path.display(), algorithm);
+    Ok(())
+}
+
+fn process_multiple_files(pattern: &str, output_dir: &Path, operation: &str, algorithm: Option<Algorithm>) -> Result<()> {
+    let paths: Vec<_> = glob(pattern)
+        .context("Invalid glob pattern")?
+        .filter_map(Result::ok)
+        .collect();
+
+    if paths.is_empty() {
+        return Err(anyhow::anyhow!("No files found matching pattern: {}", pattern));
+    }
+
+    fs::create_dir_all(output_dir)?;
+
+    for input_path in paths {
+        let relative_path = input_path.strip_prefix(Path::new(pattern).parent().unwrap_or(Path::new("")))?;
+        let mut output_path = output_dir.join(relative_path);
+        output_path.set_extension(format!("{}.{}", 
+            output_path.extension().unwrap_or_default().to_str().unwrap_or(""),
+            if operation == "compress" { "compressed" } else { "decompressed" }
+        ));
+
+        let alg = algorithm.unwrap_or_else(|| detect_algorithm(&input_path));
+        process_file(&input_path, &output_path, operation, alg)?;
+    }
+
+    Ok(())
+}
+
+fn process_stream(operation: &str, algorithm: Algorithm) -> Result<()> {
+    let mut input = String::new();
+    io::stdin().read_to_string(&mut input)?;
+
+    let result = match (operation, algorithm) {
+        ("compress", Algorithm::Rle) => rle_compress(input.as_bytes()),
+        ("compress", Algorithm::Lz) => lz_compress(input.as_bytes()),
+        ("decompress", Algorithm::Rle) => rle_decompress(input.as_bytes()),
+        ("decompress", Algorithm::Lz) => lz_decompress(input.as_bytes()),
+        _ => return Err(anyhow::anyhow!("Invalid operation")),
+    };
+
+    io::stdout().write_all(&result)?;
+    Ok(())
 }
 
 fn main() -> Result<()> {
-    let cli = match Cli::try_parse() {
-        Ok(cli) => cli,
-        Err(err) => {
-            // For invalid arguments, show simple help
-            if matches!(err.kind(), ErrorKind::UnknownArgument) {
-                eprintln!("Error: {}\n", err);
-                eprintln!("Usage:");
-                eprintln!("Normal:    cargo run -- compress|decompress <input> <output> --algorithm rle|lz");
-                eprintln!("Stdin:     echo 'text' | cargo run -- compress > output.bin");
-                eprintln!("Stdout:    cargo run -- decompress input.bin");
-                eprintln!("\nFor more details, use: cargo run -- --help");
-                std::process::exit(1);
-            }
-            return Err(err.into());
+    let cli = Cli::parse();
+
+    if !["compress", "decompress"].contains(&cli.operation.as_str()) {
+        eprintln!("Error: Invalid operation");
+        eprintln!("\nUsage:");
+        eprintln!("Normal:    cargo run compress|decompress <input> <output> --algorithm rle|lz");
+        eprintln!("Multiple:  cargo run compress|decompress \"*.txt\" output_dir --algorithm rle|lz");
+        eprintln!("Stdin:     echo \"text\" | cargo run compress --algorithm rle > output.bin");
+        eprintln!("Stdout:    cargo run decompress input.bin --algorithm rle");
+        eprintln!("\nFor more details, use: cargo run -- --help");
+        std::process::exit(1);
+    }
+
+    match (&cli.input, &cli.output) {
+        (None, _) => {
+            // Handle stdin/stdout
+            process_stream(&cli.operation, cli.algorithm.unwrap_or(Algorithm::Rle))?;
         }
-    };
-    
-    // Read input
-    let mut input_data = Vec::new();
-    match cli.input {
-        Some(path) => {
-            let mut file = fs::File::open(&path)
-                .with_context(|| format!("Failed to open input file: {}", path.display()))?;
-            file.read_to_end(&mut input_data)?;
+        (Some(input), Some(output)) if input.contains('*') => {
+            // Handle multiple files
+            process_multiple_files(input, Path::new(output), &cli.operation, cli.algorithm)?;
         }
-        None => {
-            stdin().lock().read_to_end(&mut input_data)?;
+        (Some(input), output) => {
+            // Handle single file
+            let input_path = Path::new(input);
+            let output_path = output
+                .as_ref()
+                .map(|o| PathBuf::from(o))
+                .unwrap_or_else(|| {
+                    let mut path = input_path.to_path_buf();
+                    path.set_extension(format!("{}.{}", 
+                        path.extension().unwrap_or_default().to_str().unwrap_or(""),
+                        if cli.operation == "compress" { "compressed" } else { "decompressed" }
+                    ));
+                    path
+                });
+
+            let algorithm = cli.algorithm.unwrap_or_else(|| detect_algorithm(input_path));
+            process_file(input_path, &output_path, &cli.operation, algorithm)?;
         }
     }
-    
-    // Detect algorithm if not specified
-    let algorithm = match cli.algorithm {
-        Some(alg) => alg,
-        None => {
-            let detected = detect_best_algorithm(&input_data);
-            eprintln!("Auto-detected algorithm: {:?}", detected);
-            detected
-        }
-    };
-    
-    // Process the data
-    let output_data = process_data(cli.operation, algorithm, &input_data)?;
-    
-    // Write output
-    match cli.output {
-        Some(path) => {
-            let mut file = fs::File::create(&path)
-                .with_context(|| format!("Failed to create output file: {}", path.display()))?;
-            file.write_all(&output_data)?;
-            eprintln!("Operation completed successfully using {:?} algorithm", algorithm);
-        }
-        None => {
-            stdout().write_all(&output_data)?;
-        }
-    }
-    
+
     Ok(())
 }
