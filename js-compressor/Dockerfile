@@ -14,8 +14,8 @@ RUN npm install
 COPY . .
 
 # Make the CLI executable
-RUN chmod +x src/cli.js
+RUN chmod +x index.js
 
 # Set the entrypoint
-ENTRYPOINT ["node", "src/cli.js"]
+ENTRYPOINT ["node", "index.js"]
 CMD ["--help"] 
