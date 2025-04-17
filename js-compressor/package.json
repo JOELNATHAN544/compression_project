@@ -9,6 +9,6 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "mocha": "11.2.1"
+    "mocha": "^11.2.1"
   }
 } 

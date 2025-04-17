@@ -20,8 +20,8 @@ COPY . .
 RUN cargo build --release && \
     ls -l target/release/compression
 
-# Use a minimal image for the final container
-FROM debian:bullseye-slim
+# Use a newer Debian image for the final container
+FROM debian:bookworm-slim
 
 # Copy the binary from the builder stage
 COPY --from=builder /usr/src/rust-compressor/target/release/compression /usr/local/bin/compression

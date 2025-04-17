@@ -2,7 +2,7 @@
 FROM node:20-slim
 
 # Set working directory
-WORKDIR /usr/src/app
+WORKDIR /usr/src/js-compressor
 
 # Copy package files
 COPY package*.json ./
@@ -13,9 +13,9 @@ RUN npm install
 # Copy source code
 COPY . .
 
-# Make the CLI script executable
-RUN chmod +x cli.js
+# Make the CLI executable
+RUN chmod +x src/cli.js
 
-# Set the entrypoint to the CLI
-ENTRYPOINT ["node", "cli.js"]
+# Set the entrypoint
+ENTRYPOINT ["node", "src/cli.js"]
 CMD ["--help"] 
