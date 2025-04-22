@@ -23,10 +23,10 @@ cargo build --release
 
 ```bash
 # Compress a file
-./target/release/compression compress -i input.txt -o output.txt -a rle
+./target/release/compression compress input.txt output.txt rle
 
 # Decompress a file
-./target/release/compression decompress -i output.txt -o decompressed.txt -a rle
+./target/release/compression decompress output.txt decompressed.txt rle
 ```
 
 ### Docker
@@ -55,10 +55,10 @@ npm install
 
 ```bash
 # Compress a file
-node src/cli.js compress -i input.txt -o output.txt -a rle
+node src/cli.js compress  input.txt output.txt rle
 
 # Decompress a file
-node src/cli.js decompress -i output.txt -o decompressed.txt -a rle
+node src/cli.js decompress output.txt decompressed.txt rle
 ```
 
 ### Docker
@@ -68,10 +68,10 @@ node src/cli.js decompress -i output.txt -o decompressed.txt -a rle
 docker build -t js-compression .
 
 # Run compression
-docker run -v $(pwd):/data js-compression compress -i /data/input.txt -o /data/output.txt -a rle
+docker run -v $(pwd):/data js-compression compress /data/input.txt /data/output.txt rle
 
 # Run decompression
-docker run -v $(pwd):/data js-compression decompress -i /data/output.txt -o /data/decompressed.txt -a rle
+docker run -v $(pwd):/data js-compression decompress /data/output.txt /data/decompressed.txt rle
 ```
 
 ## Benchmarking
@@ -96,14 +96,3 @@ This will generate a benchmark report in `benchmark_report.md`.
 - Good for general-purpose compression
 - Creates a dictionary of repeated patterns
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
