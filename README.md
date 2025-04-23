@@ -23,10 +23,10 @@ cargo build --release
 
 ```bash
 # Compress a file
-./target/release/compression compress input.txt output.txt rle
+cargo run compress input.txt output.txt rle
 
 # Decompress a file
-./target/release/compression decompress output.txt decompressed.txt rle
+cargo run decompress output.txt decompressed.txt rle
 ```
 
 ### Docker
